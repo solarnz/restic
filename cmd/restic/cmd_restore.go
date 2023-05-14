@@ -44,7 +44,7 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 			wg.Wait()
 		}()
 
-		term := termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet)
+		term := termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet, nil)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

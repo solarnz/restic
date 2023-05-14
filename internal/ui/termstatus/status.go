@@ -22,6 +22,7 @@ type Terminal struct {
 	wr              *bufio.Writer
 	fd              uintptr
 	errWriter       io.Writer
+	logWriter       *io.Writer
 	buf             *bytes.Buffer
 	msg             chan message
 	status          chan status
@@ -56,10 +57,11 @@ type fder interface {
 // normal output (via Print/Printf) are written to wr, error messages are
 // written to errWriter. If disableStatus is set to true, no status messages
 // are printed even if the terminal supports it.
-func New(wr io.Writer, errWriter io.Writer, disableStatus bool) *Terminal {
+func New(wr io.Writer, errWriter io.Writer, disableStatus bool, logWriter *io.Writer) *Terminal {
 	t := &Terminal{
 		wr:        bufio.NewWriter(wr),
 		errWriter: errWriter,
+		logWriter: logWriter,
 		buf:       bytes.NewBuffer(nil),
 		msg:       make(chan message),
 		status:    make(chan status),
@@ -134,6 +136,12 @@ func (t *Terminal) run(ctx context.Context) {
 			if _, err := io.WriteString(dst, msg.line); err != nil {
 				fmt.Fprintf(os.Stderr, "write failed: %v\n", err)
 				continue
+			}
+			if t.logWriter != nil {
+				if _, err := io.WriteString(*t.logWriter, msg.line); err != nil {
+					fmt.Fprintf(os.Stderr, "write failed: %v\n", err)
+					continue
+				}
 			}
 
 			t.writeStatus(status)

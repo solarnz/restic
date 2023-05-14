@@ -71,7 +71,19 @@ Exit status is 3 if some source data could not be read (incomplete snapshot crea
 			wg.Wait()
 		}()
 
-		term := termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet)
+		var logWriter *io.Writer = nil
+
+		if backupOptions.LogFile != "" {
+			logFile, err := os.OpenFile(backupOptions.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+			if err != nil {
+				panic(err)
+			}
+			defer logFile.Close()
+			writer := io.Writer(logFile)
+			logWriter = &writer
+		}
+
+		term := termstatus.New(globalOptions.stdout, globalOptions.stderr, globalOptions.Quiet, logWriter)
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -117,6 +129,7 @@ type BackupOptions struct {
 	ReadConcurrency   uint
 	NoScan            bool
 	MaxDuration       time.Duration
+	LogFile           string
 }
 
 var backupOptions BackupOptions
@@ -163,6 +176,7 @@ func init() {
 		f.BoolVar(&backupOptions.UseFsSnapshot, "use-fs-snapshot", false, "use filesystem snapshot where possible (currently only Windows VSS)")
 	}
 	f.DurationVar(&backupOptions.MaxDuration, "max-duration", 0, "maximum duration restic will backup for")
+	f.StringVar(&backupOptions.LogFile, "log-file", "", "log file to also write to")
 
 	// parse read concurrency from env, on error the default value will be used
 	readConcurrency, _ := strconv.ParseUint(os.Getenv("RESTIC_READ_CONCURRENCY"), 10, 32)
