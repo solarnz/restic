@@ -58,7 +58,13 @@ Exit status is 3 if some source data could not be read (incomplete snapshot crea
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx := cmd.Context()
 		var wg sync.WaitGroup
+
 		cancelCtx, cancel := context.WithCancel(ctx)
+
+		if backupOptions.MaxDuration != 0 {
+			cancelCtx, cancel = context.WithTimeout(cancelCtx, backupOptions.MaxDuration)
+		}
+
 		defer func() {
 			// shutdown termstatus
 			cancel()
@@ -110,6 +116,7 @@ type BackupOptions struct {
 	DryRun            bool
 	ReadConcurrency   uint
 	NoScan            bool
+	MaxDuration       time.Duration
 }
 
 var backupOptions BackupOptions
@@ -155,6 +162,7 @@ func init() {
 	if runtime.GOOS == "windows" {
 		f.BoolVar(&backupOptions.UseFsSnapshot, "use-fs-snapshot", false, "use filesystem snapshot where possible (currently only Windows VSS)")
 	}
+	f.DurationVar(&backupOptions.MaxDuration, "max-duration", 0, "maximum duration restic will backup for")
 
 	// parse read concurrency from env, on error the default value will be used
 	readConcurrency, _ := strconv.ParseUint(os.Getenv("RESTIC_READ_CONCURRENCY"), 10, 32)
