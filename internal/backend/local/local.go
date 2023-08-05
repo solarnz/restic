@@ -10,6 +10,8 @@ import (
 
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/layout"
+	"github.com/restic/restic/internal/backend/limiter"
+	"github.com/restic/restic/internal/backend/location"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
@@ -27,6 +29,10 @@ type Local struct {
 
 // ensure statically that *Local implements restic.Backend.
 var _ restic.Backend = &Local{}
+
+func NewFactory() location.Factory {
+	return location.NewLimitedBackendFactory("local", ParseConfig, location.NoPassword, limiter.WrapBackendConstructor(Create), limiter.WrapBackendConstructor(Open))
+}
 
 const defaultLayout = "default"
 
@@ -147,6 +153,13 @@ func (b *Local) Save(_ context.Context, h restic.Handle, rd restic.RewindReader)
 			_ = fs.Remove(f.Name())
 		}
 	}(f)
+
+	// preallocate disk space
+	if size := rd.Length(); size > 0 {
+		if err := fs.PreallocateFile(f, size); err != nil {
+			debug.Log("Failed to preallocate %v with size %v: %v", finalname, size, err)
+		}
+	}
 
 	// save data, then sync
 	wbytes, err := io.Copy(f, rd)

@@ -451,6 +451,15 @@ and displays a small statistic, just pass the command two snapshot IDs:
       Added:   16.403 MiB
       Removed: 16.402 MiB
 
+To only compare files in specific subfolders, you can use the ``<snapshot>:<subfolder>``
+syntax, where ``snapshot`` is the ID of a snapshot (or the string ``latest``) and ``subfolder``
+is a path within the snapshot. For example, to only compare files in the ``/restic``
+folder, you could use the following command:
+
+.. code-block:: console
+
+    $ restic -r /srv/restic-repo diff 5845b002:/restic 2ab627a6:/restic
+
 
 Backing up special items and metadata
 *************************************
@@ -567,6 +576,8 @@ environment variables. The following lists these environment variables:
     RESTIC_PASSWORD                     The actual password for the repository
     RESTIC_PASSWORD_COMMAND             Command printing the password for the repository to stdout
     RESTIC_KEY_HINT                     ID of key to try decrypting first, before other keys
+    RESTIC_CACERT                       Location(s) of certificate file(s), comma separated if multiple (replaces --cacert)
+    RESTIC_TLS_CLIENT_CERT              Location of TLS client certificate and private key (replaces --tls-client-cert)
     RESTIC_CACHE_DIR                    Location of the cache directory
     RESTIC_COMPRESSION                  Compression mode (only available for repository format version 2)
     RESTIC_PROGRESS_FPS                 Frames per second by which the progress bar is updated
@@ -614,6 +625,7 @@ environment variables. The following lists these environment variables:
     AZURE_ACCOUNT_NAME                  Account name for Azure
     AZURE_ACCOUNT_KEY                   Account key for Azure
     AZURE_ACCOUNT_SAS                   Shared access signatures (SAS) for Azure
+    AZURE_ENDPOINT_SUFFIX               Endpoint suffix for Azure Storage (default: core.windows.net)
 
     GOOGLE_PROJECT_ID                   Project ID for Google Cloud Storage
     GOOGLE_APPLICATION_CREDENTIALS      Application Credentials for Google Cloud Storage (e.g. $HOME/.config/gs-secret-restic-key.json)

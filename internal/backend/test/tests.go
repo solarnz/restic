@@ -36,9 +36,15 @@ func beTest(ctx context.Context, be restic.Backend, h restic.Handle) (bool, erro
 	return err == nil, err
 }
 
+// TestStripPasswordCall tests that the StripPassword method of a factory can be called without crashing.
+// It does not verify whether passwords are removed correctly
+func (s *Suite[C]) TestStripPasswordCall(_ *testing.T) {
+	s.Factory.StripPassword("some random string")
+}
+
 // TestCreateWithConfig tests that creating a backend in a location which already
 // has a config file fails.
-func (s *Suite) TestCreateWithConfig(t *testing.T) {
+func (s *Suite[C]) TestCreateWithConfig(t *testing.T) {
 	b := s.open(t)
 	defer s.close(t, b)
 
@@ -57,7 +63,7 @@ func (s *Suite) TestCreateWithConfig(t *testing.T) {
 	store(t, b, restic.ConfigFile, []byte("test config"))
 
 	// now create the backend again, this must fail
-	_, err = s.Create(s.Config)
+	_, err = s.createOrError()
 	if err == nil {
 		t.Fatalf("expected error not found for creating a backend with an existing config file")
 	}
@@ -70,7 +76,7 @@ func (s *Suite) TestCreateWithConfig(t *testing.T) {
 }
 
 // TestLocation tests that a location string is returned.
-func (s *Suite) TestLocation(t *testing.T) {
+func (s *Suite[C]) TestLocation(t *testing.T) {
 	b := s.open(t)
 	defer s.close(t, b)
 
@@ -81,7 +87,7 @@ func (s *Suite) TestLocation(t *testing.T) {
 }
 
 // TestConfig saves and loads a config from the backend.
-func (s *Suite) TestConfig(t *testing.T) {
+func (s *Suite[C]) TestConfig(t *testing.T) {
 	b := s.open(t)
 	defer s.close(t, b)
 
@@ -118,7 +124,7 @@ func (s *Suite) TestConfig(t *testing.T) {
 }
 
 // TestLoad tests the backend's Load function.
-func (s *Suite) TestLoad(t *testing.T) {
+func (s *Suite[C]) TestLoad(t *testing.T) {
 	seedRand(t)
 
 	b := s.open(t)
@@ -222,8 +228,12 @@ func (s *Suite) TestLoad(t *testing.T) {
 	test.OK(t, b.Remove(context.TODO(), handle))
 }
 
+type setter interface {
+	SetListMaxItems(int)
+}
+
 // TestList makes sure that the backend implements List() pagination correctly.
-func (s *Suite) TestList(t *testing.T) {
+func (s *Suite[C]) TestList(t *testing.T) {
 	seedRand(t)
 
 	numTestFiles := rand.Intn(20) + 20
@@ -268,10 +278,6 @@ func (s *Suite) TestList(t *testing.T) {
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("max-%v", test.maxItems), func(t *testing.T) {
 			list2 := make(map[restic.ID]int64)
-
-			type setter interface {
-				SetListMaxItems(int)
-			}
 
 			if s, ok := b.(setter); ok {
 				t.Logf("setting max list items to %d", test.maxItems)
@@ -326,7 +332,7 @@ func (s *Suite) TestList(t *testing.T) {
 }
 
 // TestListCancel tests that the context is respected and the error is returned by List.
-func (s *Suite) TestListCancel(t *testing.T) {
+func (s *Suite[C]) TestListCancel(t *testing.T) {
 	seedRand(t)
 
 	numTestFiles := 5
@@ -422,6 +428,11 @@ func (s *Suite) TestListCancel(t *testing.T) {
 
 			// wait until the context is cancelled
 			<-ctxTimeout.Done()
+			// The cancellation of a context first closes the done channel of the context and
+			// _afterwards_ propagates the cancellation to child contexts. If the List
+			// implementation uses a child context, then it may take a moment until that context
+			// is also cancelled. Thus give the context cancellation a moment to propagate.
+			time.Sleep(time.Millisecond)
 			return nil
 		})
 
@@ -466,7 +477,7 @@ func (ec errorCloser) Rewind() error {
 }
 
 // TestSave tests saving data in the backend.
-func (s *Suite) TestSave(t *testing.T) {
+func (s *Suite[C]) TestSave(t *testing.T) {
 	seedRand(t)
 
 	b := s.open(t)
@@ -582,7 +593,7 @@ func (r *incompleteByteReader) Length() int64 {
 }
 
 // TestSaveError tests saving data in the backend.
-func (s *Suite) TestSaveError(t *testing.T) {
+func (s *Suite[C]) TestSaveError(t *testing.T) {
 	seedRand(t)
 
 	b := s.open(t)
@@ -621,7 +632,7 @@ func (b *wrongByteReader) Hash() []byte {
 }
 
 // TestSaveWrongHash tests that uploads with a wrong hash fail
-func (s *Suite) TestSaveWrongHash(t *testing.T) {
+func (s *Suite[C]) TestSaveWrongHash(t *testing.T) {
 	seedRand(t)
 
 	b := s.open(t)
@@ -679,7 +690,7 @@ func testLoad(b restic.Backend, h restic.Handle) error {
 	})
 }
 
-func (s *Suite) delayedRemove(t testing.TB, be restic.Backend, handles ...restic.Handle) error {
+func (s *Suite[C]) delayedRemove(t testing.TB, be restic.Backend, handles ...restic.Handle) error {
 	// Some backend (swift, I'm looking at you) may implement delayed
 	// removal of data. Let's wait a bit if this happens.
 
@@ -746,7 +757,7 @@ func delayedList(t testing.TB, b restic.Backend, tpe restic.FileType, max int, m
 }
 
 // TestBackend tests all functions of the backend.
-func (s *Suite) TestBackend(t *testing.T) {
+func (s *Suite[C]) TestBackend(t *testing.T) {
 	b := s.open(t)
 	defer s.close(t, b)
 
@@ -867,7 +878,7 @@ func (s *Suite) TestBackend(t *testing.T) {
 }
 
 // TestZZZDelete tests the Delete function. The name ensures that this test is executed last.
-func (s *Suite) TestZZZDelete(t *testing.T) {
+func (s *Suite[C]) TestZZZDelete(t *testing.T) {
 	if !test.TestCleanupTempDirs {
 		t.Skipf("not removing backend, TestCleanupTempDirs is false")
 	}

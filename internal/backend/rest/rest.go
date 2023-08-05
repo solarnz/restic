@@ -13,6 +13,7 @@ import (
 
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/layout"
+	"github.com/restic/restic/internal/backend/location"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/restic"
@@ -29,6 +30,10 @@ type Backend struct {
 	layout.Layout
 }
 
+func NewFactory() location.Factory {
+	return location.NewHTTPBackendFactory("rest", ParseConfig, StripPassword, Create, Open)
+}
+
 // the REST API protocol version is decided by HTTP request headers, these are the constants.
 const (
 	ContentTypeV1 = "application/vnd.x.restic.rest.v1"
@@ -36,7 +41,7 @@ const (
 )
 
 // Open opens the REST backend with the given config.
-func Open(cfg Config, rt http.RoundTripper) (*Backend, error) {
+func Open(_ context.Context, cfg Config, rt http.RoundTripper) (*Backend, error) {
 	// use url without trailing slash for layout
 	url := cfg.URL.String()
 	if url[len(url)-1] == '/' {
@@ -55,7 +60,7 @@ func Open(cfg Config, rt http.RoundTripper) (*Backend, error) {
 
 // Create creates a new REST on server configured in config.
 func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (*Backend, error) {
-	be, err := Open(cfg, rt)
+	be, err := Open(ctx, cfg, rt)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +147,7 @@ func (b *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindRea
 		return errors.WithStack(err)
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return errors.Errorf("server response unexpected: %v (%v)", resp.Status, resp.StatusCode)
 	}
 
@@ -224,7 +229,7 @@ func (b *Backend) openReader(ctx context.Context, h restic.Handle, length int, o
 		return nil, &notExistError{h}
 	}
 
-	if resp.StatusCode != 200 && resp.StatusCode != 206 {
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusPartialContent {
 		_ = resp.Body.Close()
 		return nil, errors.Errorf("unexpected HTTP response (%v): %v", resp.StatusCode, resp.Status)
 	}
@@ -255,7 +260,7 @@ func (b *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, e
 		return restic.FileInfo{}, &notExistError{h}
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return restic.FileInfo{}, errors.Errorf("unexpected HTTP response (%v): %v", resp.StatusCode, resp.Status)
 	}
 
@@ -290,7 +295,7 @@ func (b *Backend) Remove(ctx context.Context, h restic.Handle) error {
 		return &notExistError{h}
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusOK {
 		return errors.Errorf("blob not removed, server response: %v (%v)", resp.Status, resp.StatusCode)
 	}
 
@@ -322,7 +327,12 @@ func (b *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.Fi
 		return errors.Wrap(err, "List")
 	}
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode == http.StatusNotFound {
+		// ignore missing directories
+		return nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
 		return errors.Errorf("List failed, server response: %v (%v)", resp.Status, resp.StatusCode)
 	}
 

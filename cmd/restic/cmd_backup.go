@@ -475,7 +475,7 @@ func findParentSnapshot(ctx context.Context, repo restic.Repository, opts Backup
 		f.Tags = []restic.TagList{opts.Tags.Flatten()}
 	}
 
-	sn, err := f.FindLatest(ctx, repo.Backend(), repo, snName)
+	sn, _, err := f.FindLatest(ctx, repo.Backend(), repo, snName)
 	// Snapshot not found is ok if no explicit parent was set
 	if opts.Parent == "" && errors.Is(err, restic.ErrNoSnapshotFound) {
 		err = nil
@@ -528,10 +528,13 @@ func runBackup(ctx context.Context, opts BackupOptions, gopts GlobalOptions, ter
 	if !gopts.JSON {
 		progressPrinter.V("lock repository")
 	}
-	lock, ctx, err := lockRepo(ctx, repo, gopts.RetryLock, gopts.JSON)
-	defer unlockRepo(lock)
-	if err != nil {
-		return err
+	if !opts.DryRun {
+		var lock *restic.Lock
+		lock, ctx, err = lockRepo(ctx, repo, gopts.RetryLock, gopts.JSON)
+		defer unlockRepo(lock)
+		if err != nil {
+			return err
+		}
 	}
 
 	// rejectByNameFuncs collect functions that can reject items from the backup based on path only
@@ -667,6 +670,7 @@ func runBackup(ctx context.Context, opts BackupOptions, gopts GlobalOptions, ter
 		Time:           timeStamp,
 		Hostname:       opts.Host,
 		ParentSnapshot: parentSnapshot,
+		ProgramVersion: "restic " + version,
 	}
 
 	if !gopts.JSON {
