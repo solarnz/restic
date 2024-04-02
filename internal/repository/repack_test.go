@@ -213,7 +213,7 @@ func reloadIndex(t *testing.T, repo restic.Repository) {
 		t.Fatal(err)
 	}
 
-	if err := repo.LoadIndex(context.TODO()); err != nil {
+	if err := repo.LoadIndex(context.TODO(), nil); err != nil {
 		t.Fatalf("error loading new index: %v", err)
 	}
 }
@@ -346,7 +346,8 @@ func TestRepackWrongBlob(t *testing.T) {
 }
 
 func testRepackWrongBlob(t *testing.T, version uint) {
-	repo := repository.TestRepositoryWithVersion(t, version)
+	// disable verification to allow adding corrupted blobs to the repository
+	repo := repository.TestRepositoryWithBackend(t, nil, version, repository.Options{NoExtraVerify: true})
 
 	seed := time.Now().UnixNano()
 	rand.Seed(seed)
@@ -371,7 +372,8 @@ func TestRepackBlobFallback(t *testing.T) {
 }
 
 func testRepackBlobFallback(t *testing.T, version uint) {
-	repo := repository.TestRepositoryWithVersion(t, version)
+	// disable verification to allow adding corrupted blobs to the repository
+	repo := repository.TestRepositoryWithBackend(t, nil, version, repository.Options{NoExtraVerify: true})
 
 	seed := time.Now().UnixNano()
 	rand.Seed(seed)

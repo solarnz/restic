@@ -24,7 +24,7 @@ type Repository interface {
 	Key() *crypto.Key
 
 	Index() MasterIndex
-	LoadIndex(context.Context) error
+	LoadIndex(context.Context, *progress.Counter) error
 	SetIndex(MasterIndex) error
 	LookupBlobSize(ID, BlobType) (uint, bool)
 
@@ -39,7 +39,7 @@ type Repository interface {
 	List(ctx context.Context, t FileType, fn func(ID, int64) error) error
 
 	// ListPack returns the list of blobs saved in the pack id and the length of
-	// the the pack header.
+	// the pack header.
 	ListPack(context.Context, ID, int64) ([]Blob, uint32, error)
 
 	LoadBlob(context.Context, BlobType, ID, []byte) ([]byte, error)
